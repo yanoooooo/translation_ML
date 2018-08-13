@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__
+models/
+data/
+README.md
+create_corpus.py
