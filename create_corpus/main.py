@@ -14,6 +14,19 @@ def get_re_delimiter(delimiter):
 
     return re_delimiter
 
+def get_mecab_list(node):
+    word_class = []
+    while node:
+        word = node.surface
+        wclass = node.feature.split(',')
+        if wclass[0] != u'BOS/EOS':
+            if wclass[6] == None:
+                word_class.append((word,wclass[0],wclass[1],wclass[2],""))
+            else:
+                word_class.append((word,wclass[0],wclass[1],wclass[2],wclass[6]))
+        node = node.next
+    return word_class
+
 # フレーズから、歌詞とモーラ数を抽出する
 def read_musicxml(filename, delimiter, is_en=True):
     # 正規表現の作成
@@ -75,10 +88,48 @@ def read_musicxml(filename, delimiter, is_en=True):
                 # print(phrase)
                 tune.append(phrase)
             else:
+                if lyric_text != '':
+                    ja_ly_mora_dict['Lyric'].append(lyric_text)
+                    ja_ly_mora_dict['Mora'].append(mora)
                 phrase['Lyrics'] += lyric_text
-                # それぞれの形態素が何個モーラを持っているか ja_ly_mora_dict を突き合わせて調べる
-                print(mecab.parse(phrase['Lyrics']))
-                # print(phrase['Lyrics'])
+
+                mecab.parse('')
+                node = mecab.parseToNode(phrase['Lyrics'])
+                mecab_list = get_mecab_list(node)
+                # # それぞれの形態素が何個モーラを持っているか ja_ly_mora_dict を突き合わせて調べる
+                mecab_index = 0
+                mecab_length = 0
+                dict_length = 0
+                mora = 0
+                phrase['Lyrics'] = ''
+                # pre_word = ''
+                for index, ly in enumerate(ja_ly_mora_dict['Lyric']):
+                    # mecab_word = pre_word + mecab_list[mecab_index][0]
+                    mecab_length = len(mecab_list[mecab_index][0])
+                    dict_length += len(ly)
+                    # print(mecab_length, dict_length)
+                    if mecab_length > dict_length:
+                        mora += ja_ly_mora_dict['Mora'][index]
+                        # pre_word = ''
+                    elif mecab_length < dict_length:
+                        print("Error: ", mecab_list[mecab_index][0], ly)
+                        # print(mecab_word)
+                        # pre_word =  mecab_list[mecab_index][0]
+                        # mecab_index += 1
+                        # print(mecab_list[mecab_index][0], ly)
+                    else:
+                        mora += ja_ly_mora_dict['Mora'][index]
+                        phrase['Mora'] += str(mora) + ' '
+                        phrase['Lyrics'] += mecab_list[mecab_index][0] + ' '
+                        mora = 0
+                        mecab_index += 1
+                        dict_length = 0
+                # print(phrase)
+                ja_ly_mora_dict = {'Lyric':[], 'Mora':[]}
+                ja_current_num = 0
+                phrase['Mora'] = phrase['Mora'].strip()
+                phrase['Lyrics'] = phrase['Lyrics'].strip()
+                tune.append(phrase)
 
             phrase = {'Lyrics': "", 'Mora': ""}
             mora = 0
@@ -178,11 +229,13 @@ if __name__=="__main__":
     ja_file_list = os.listdir(ja_path)
 
     files = [
-        open('./data/english.txt', 'w'),
-        open('./data/en_rythm.txt', 'w'),
-        open('./data/japanese.txt', 'w'),
-        open('./data/ja_rythm.txt', 'w')
+        open('./data/en.txt', 'w'),
+        open('./data/ja.txt', 'w')
     ]
+
+    # header
+    files[0].write('Lyrics,Mora\n')
+    files[1].write('Lyrics,Mora\n')
 
     # en_file_list = ['05.musicxml']
     # ja_file_list = ['05.musicxml']
@@ -198,12 +251,10 @@ if __name__=="__main__":
             traceback.print_exc()
 
         for en, ja in zip(en_data, ja_data):
-            files[0].write(en['Lyrics']+'\n')
-            files[1].write(en['Mora']+'\n')
-            files[2].write(ja['Lyrics']+'\n')
-            files[3].write(ja['Mora']+'\n')
+            files[0].write(en['Lyrics']+','+en['Mora']+'\n')
+            files[1].write(ja['Lyrics']+','+ja['Mora']+'\n')
         for file in files:
-            file.write('\n')
+            file.write('None,None\n')
         # durationのとき
         # for en, ja in zip(en_data, ja_data):
         #     files[0].write(en['lyrics']+'\n')
