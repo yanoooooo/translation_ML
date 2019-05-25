@@ -102,25 +102,33 @@ def read_musicxml(filename, delimiter, is_en=True):
                 dict_length = 0
                 mora = 0
                 phrase['Lyrics'] = ''
-                # pre_word = ''
+                pre_ly_index = 0
                 for index, ly in enumerate(ja_ly_mora_dict['Lyric']):
-                    # mecab_word = pre_word + mecab_list[mecab_index][0]
                     mecab_length = len(mecab_list[mecab_index][0])
                     dict_length += len(ly)
+                    # print(mecab_list[mecab_index][0], ly)
                     # print(mecab_length, dict_length)
                     if mecab_length > dict_length:
                         mora += ja_ly_mora_dict['Mora'][index]
-                        # pre_word = ''
                     elif mecab_length < dict_length:
-                        print("Error: ", mecab_list[mecab_index][0], ly)
-                        # print(mecab_word)
-                        # pre_word =  mecab_list[mecab_index][0]
-                        # mecab_index += 1
-                        # print(mecab_list[mecab_index][0], ly)
+                        # mecabの分割と譜割りが合わないとエラーになる
+                        # ex.) mecab => 許せよ う, score => 許せ よう: 03.musicxml
+                        print("Warning: ", mecab_list[mecab_index][0], ly)
+                        word = ''
+                        for i in range(pre_ly_index+1, index+1):
+                            word += ja_ly_mora_dict['Lyric'][i]
+                        mora += ja_ly_mora_dict['Mora'][index]
+                        phrase['Mora'] += str(mora) + ' '
+                        phrase['Lyrics'] += word + ' '
+                        pre_ly_index = index
+                        mora = 0
+                        mecab_index += 1
+                        dict_length = 0
                     else:
                         mora += ja_ly_mora_dict['Mora'][index]
                         phrase['Mora'] += str(mora) + ' '
                         phrase['Lyrics'] += mecab_list[mecab_index][0] + ' '
+                        pre_ly_index = index
                         mora = 0
                         mecab_index += 1
                         dict_length = 0
@@ -168,7 +176,7 @@ def extract_lyrics_duration(filename, delimiter):
     multiply = 24 / int(divisions)
 
     tune = []
-    phrase = {'lyrics': "", 'durations': ""}
+    phrase = {'Lyrics': "", 'durations': ""}
     tie_durations = 0
     for note in elem.findall('.//note'):
         # 歌詞がない音符は休符の時のみアスタリスク
@@ -204,22 +212,21 @@ def extract_lyrics_duration(filename, delimiter):
                 lyric_text = lyric_text.replace(delm, '')
                 # lyric_text = lyric_text.replace(delm, ' '+delm)
             phrase['durations'] += str(int(duration) * int(multiply))
-            phrase['lyrics'] += lyric_text
+            phrase['Lyrics'] += lyric_text
             # print(phrase)
             tune.append(phrase)
-            phrase = {'lyrics': "", 'durations': ""}
+            phrase = {'Lyrics': "", 'durations': ""}
         else:
             # 歌詞より前に休符がある場合は無視
-            if len(phrase['lyrics']) == 0 and "*" in lyric_text:
+            if len(phrase['Lyrics']) == 0 and "*" in lyric_text:
                 continue
             phrase['durations'] += str(int(duration) * int(multiply)) + ' '
-            phrase['lyrics'] += lyric_text
+            phrase['Lyrics'] += lyric_text
             if ((syllabic == 'single') or (syllabic == 'end')) and re.match(r'[a-zA-z]|\'', lyric_text):
-                phrase['lyrics'] += ' '
+                phrase['Lyrics'] += ' '
     return tune
 
 if __name__=="__main__":
-    file_num = 5  # number of reading file
     en_path = './data/score/en'
     ja_path = './data/score/ja'
     en_delimiter = [',', '.' , '?', '!', ':']
@@ -237,14 +244,19 @@ if __name__=="__main__":
     files[0].write('Lyrics,Mora\n')
     files[1].write('Lyrics,Mora\n')
 
+    # 1曲をデバッグしたい時
     # en_file_list = ['05.musicxml']
     # ja_file_list = ['05.musicxml']
 
-    for num in range(file_num):
+    for num in range(len(en_file_list)):
         print("tune: %d" % (num+1))
         try:
+            # mora
             en_data = read_musicxml(en_path +'/'+ en_file_list[num], en_delimiter)
             ja_data = read_musicxml(ja_path +'/'+ ja_file_list[num], ja_delimiter, False)
+            # duration
+            # en_data = extract_lyrics_duration(en_path +'/'+ en_file_list[num], en_delimiter)
+            # ja_data = extract_lyrics_duration(ja_path +'/'+ ja_file_list[num], ja_delimiter)
         except:
             print('Error: ' + en_file_list[num])
             import traceback
